@@ -4,28 +4,29 @@
 #include <GxIO/GxIO_SPI/GxIO_SPI.h>
 #include <GxIO/GxIO.h>
 
-// FreeFonts von Adafruit_GFX, TODO: durch u9g2 Fonts erstetzen, damit UTF-8 unterstützt wird
-#include <Fonts/FreeSansBold12pt7b.h>
-#include <Fonts/FreeSans9pt7b.h>
-#include <Fonts/FreeSansBold9pt7b.h>
-#include <Fonts/FreeSansBold18pt7b.h>
-
 // Bibliotheken um auf das Internet zugreifen zu können
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266HTTPClient.h>
 
+// Weil UTF-8
+#include <U8g2_for_Adafruit_GFX.h>
+
+
 // Display einrichten
 GxIO_Class io(SPI, /*CS=*/ 15, /*DC=*/ 4, /*RST=*/ 5);
 GxEPD_Class display(io, /*RST=*/ 5, /*Busy=*/ 16);
+U8G2_FOR_ADAFRUIT_GFX utf8_display;
 
 void setup() {
   Serial.begin(115200);
   display.init(115200);
+  utf8_display.begin(display);
   // Erst ab hier kann Serial verwendet werden! Warum? Keine Ahnung, ist einfach so.
 
   // Anzeige drehen, sodass der Display im Hochformat angesteuert werden kann.
   display.setRotation(3);
+  utf8_display.setFontMode(1);
   Serial.println("Hallo \nDer Kalender wird jetzt gestartet.");
   Serial.println("Der Display ist kann jetzt angesteuert werden");
 
@@ -50,19 +51,19 @@ void setup() {
 
 void loop() {
   // Anfrage an Server stellen
-  HTTPClient http;    
+  HTTPClient http;
   http.begin("http://192.168.2.23:6342");
-  int httpCode = http.GET();            
-  String payload = http.getString();    
+  int httpCode = http.GET();
+  String payload = http.getString();
 
   Serial.println(httpCode);   // HTTP Response Code ausgeben
   Serial.println(payload);    // HTTP Response Body ausgeben
 
   http.end();  // Verbindung schließen
 
-  if (httpCode != 200){
+  if (httpCode != 200) {
     displayConnectionError();
-  }else{
+  } else {
     displayData(payload);
   }
   delay(900000);  //GET Data at every 15 Min
@@ -70,84 +71,108 @@ void loop() {
 }
 
 void einkStart() {
-  const GFXfont* f = &FreeSansBold18pt7b;
   display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(GxEPD_BLACK);
-  display.setFont(f);
-  display.setCursor(0, 0);
-  display.println();
-  display.println("E-Ink Kalender");
-  display.println();
-  display.println(char(0x81));
-  display.println();
-  display.println();
-  display.println("Starte...");
+  utf8_display.setFont(u8g2_font_helvB24_tf);
+  // SetFontMode muss nach jedem ändern der Schriftart aufgeruden werden, sonst wird Fontmode 0 verwende
+  utf8_display.setFontMode(1);
+  utf8_display.setForegroundColor(GxEPD_BLACK);
+  utf8_display.setCursor(30, 30);
+  utf8_display.println("E-Ink Kalender");
+  utf8_display.setCursor(20, 350);
+  utf8_display.println("Starte...");
+  utf8_display.setFont(u8g2_font_helvR14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.setCursor(160,390);
+  utf8_display.print("von @zottelchin");
+  display.fillRect(70, 100, 150, 150, GxEPD_BLACK);
+  display.fillCircle(105, 105, 7, GxEPD_WHITE);
+  display.fillCircle(185, 105, 7, GxEPD_WHITE);
+  display.fillRect(80, 120, 130, 120, GxEPD_WHITE);
+  display.drawChar(90, 130, 'J', GxEPD_BLACK, GxEPD_WHITE, 5);
+  display.drawChar(120, 130, 'U', GxEPD_BLACK, GxEPD_WHITE, 5);
+  display.drawChar(150, 130, 'L', GxEPD_BLACK, GxEPD_WHITE, 5);
+  display.drawChar(175, 130, 'I', GxEPD_BLACK, GxEPD_WHITE, 5);
+  display.drawChar(105, 175, '2', GxEPD_BLACK, GxEPD_WHITE, 7);
+  display.drawChar(155, 175, '4', GxEPD_BLACK, GxEPD_WHITE, 7);
   display.update();
 }
 
 void displayData(String data) {
   Serial.println("Kalender anzeigen");
-  const GFXfont* f1 = &FreeSansBold12pt7b;
-  const GFXfont* f2 = &FreeSansBold9pt7b;
-  const GFXfont* f3 = &FreeSans9pt7b;
   display.fillScreen(GxEPD_WHITE);
   display.setTextWrap(false);
   display.setTextColor(GxEPD_BLACK);
-  display.setFont(f1);
-  display.setCursor(25, 0);
-  display.println();
-  display.println("    " + getValue(data, 0));
+  utf8_display.setFont(u8g2_font_helvB18_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.setCursor(25, 0);
+  utf8_display.println();
+  utf8_display.println("    " + getValue(data, 0));
   display.drawFastHLine(20, 32, 260, GxEPD_BLACK);
   display.drawFastHLine(20, 110, 260, GxEPD_BLACK);
   display.drawFastHLine(20, 180, 260, GxEPD_BLACK);
   display.drawFastHLine(20, 250, 260, GxEPD_BLACK);
   display.drawFastHLine(20, 320, 260, GxEPD_BLACK);
-  display.setFont(f2);
-  display.setCursor(0, 60);
-  display.println(getValue(data, 1));
-  display.setFont(f3);
-  display.println(getValue(data, 2));
-  display.println(getValue(data, 3));
-  display.setFont(f2);
-  display.setCursor(0, 130);
-  display.println(getValue(data, 4));
-  display.setFont(f3);
-  display.println(getValue(data, 5));
-  display.println(getValue(data, 6));
-  display.setFont(f2);
-  display.setCursor(0, 200);
-  display.println(getValue(data, 7));
-  display.setFont(f3);
-  display.println(getValue(data, 8));
-  display.println(getValue(data, 9));
-  display.setFont(f2);
-  display.setCursor(0, 270);
-  display.println(getValue(data, 10));
-  display.setFont(f3);
-  display.println(getValue(data, 11));
-  display.println(getValue(data, 12));
-  display.setFont(f2);
-  display.setCursor(0, 340);
-  display.println(getValue(data, 13));
-  display.setFont(f3);
-  display.println(getValue(data, 14));
-  display.println(getValue(data, 15));
+  utf8_display.setFont(u8g2_font_helvB14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.setCursor(0, 60);
+  utf8_display.println(getValue(data, 1));
+  utf8_display.setFont(u8g2_font_helvR14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.println(getValue(data, 2));
+  utf8_display.println(getValue(data, 3));
+  utf8_display.setFont(u8g2_font_helvB14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.setCursor(0, 130);
+  utf8_display.println(getValue(data, 4));
+  utf8_display.setFont(u8g2_font_helvR14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.println(getValue(data, 5));
+  utf8_display.println(getValue(data, 6));
+  utf8_display.setFont(u8g2_font_helvB14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.setCursor(0, 200);
+  utf8_display.println(getValue(data, 7));
+  utf8_display.setFont(u8g2_font_helvR14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.println(getValue(data, 8));
+  utf8_display.println(getValue(data, 9));
+  utf8_display.setFont(u8g2_font_helvB14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.setCursor(0, 270);
+  utf8_display.println(getValue(data, 10));
+  utf8_display.setFont(u8g2_font_helvR14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.println(getValue(data, 11));
+  utf8_display.println(getValue(data, 12));
+  utf8_display.setFont(u8g2_font_helvB14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.setCursor(0, 340);
+  utf8_display.println(getValue(data, 13));
+  utf8_display.setFont(u8g2_font_helvR14_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.println(getValue(data, 14));
+  utf8_display.println(getValue(data, 15));
   display.update();
 }
 
-void displayConnectionError(){
-  const GFXfont* f = &FreeSansBold12pt7b;
+void displayConnectionError() {
   display.fillScreen(GxEPD_WHITE);
   display.setTextColor(GxEPD_BLACK);
-  display.setFont(f);
-  display.setCursor(0, 0);
-  display.println();
-  display.println("E-Ink Kalender");
-  display.println();
-  display.println();
-  display.println();
-  display.println("Verbindung zum Server ist fehlgeschlagen");
-  display.println(":(");
+  utf8_display.setFont(u8g2_font_helvB18_tf);
+  utf8_display.setFontMode(1);
+  utf8_display.setCursor(0, 0);
+  utf8_display.println();
+  utf8_display.println(" E-Ink Kalender");
+  utf8_display.println();
+  utf8_display.println();
+  utf8_display.println();
+  utf8_display.println(" Verbindung zum Server ");
+  utf8_display.println(" ist fehlgeschlagen");
+  // Smiley :|
+  display.fillCircle(150, 250, 25, GxEPD_BLACK);
+  display.fillCircle(140, 240, 3, GxEPD_WHITE);
+  display.fillCircle(160, 240, 3, GxEPD_WHITE);
+  display.fillRect(140, 260, 20, 2, GxEPD_WHITE);
   display.update();
 }
 
