@@ -2,12 +2,10 @@
 #include <GxEPD.h>
 #include <GxGDEW042T2/GxGDEW042T2.h>      // 4.2" b/w
 #include <GxIO/GxIO_SPI/GxIO_SPI.h>
-#include <GxIO/GxIO.h>
 
 // Bibliotheken um auf das Internet zugreifen zu können
 #include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecure.h>
 
 // Weil UTF-8
 #include <U8g2_for_Adafruit_GFX.h>
@@ -18,6 +16,9 @@ GxIO_Class io(SPI, /*CS=*/ 15, /*DC=*/ 4, /*RST=*/ 5);
 GxEPD_Class display(io, /*RST=*/ 5, /*Busy=*/ 16);
 U8G2_FOR_ADAFRUIT_GFX utf8_display;
 
+const char*  ssid= "FRITZ!Box 7362 SL";
+const char* password = "CocaCola";
+
 void setup() {
   Serial.begin(115200);
   display.init(115200);
@@ -27,63 +28,70 @@ void setup() {
   // Anzeige drehen, sodass der Display im Hochformat angesteuert werden kann.
   display.setRotation(3);
   utf8_display.setFontMode(1);
-  Serial.println("Hallo \nDer Kalender wird jetzt gestartet.");
-  Serial.println("Der Display ist kann jetzt angesteuert werden");
+  Serial.println(F("Hallo \nDer Kalender wird jetzt gestartet."));
+  Serial.println(F("Der Display ist kann jetzt angesteuert werden"));
 
   //Start Bildschirm anzeigen
   einkStart();
 
   //Mit dem Wlan verbinden
   WiFi.mode(WIFI_STA);
-  WiFi.begin("WLAN-NAME", "WLAN-KEY");
-  Serial.print("Verbinde mich mit dem WLAN.");
+  WiFi.begin(ssid, password);
+  Serial.print(F("Verbinde mich mit dem WLAN."));
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
-    Serial.print(".");
+    Serial.print(F("."));
   }
   Serial.println();
-  Serial.print("Connected, IP address: "); Serial.println(WiFi.localIP());
+  Serial.print(F("Connected, IP address: ")); Serial.println(WiFi.localIP());
 
   // Wir sind ab hier mit dem WLAN verbunden
 
+  WiFiClientSecure client;
+  Serial.println(F("connecting to e-ink.zottelchin.de"));
+  if (!client.connect(F("e-ink.zottelchin.de"), 443)) {
+    Serial.println(F("connection failed"));
+    return;
+  }
+
+
+
+  client.print(F("GET /ErcHRbrXh6aE7KCOfbuFzfvP6lxyoA HTTP/1.1\r\nHost: e-ink.zottelchin.de\r\nUser-Agent: BuildFailureDetectorESP8266\r\nConnection: close\r\n\r\n"));
+
+  //Serial.println("request sent");
+  while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    if (line == "\r") {
+      Serial.println(F("headers received"));
+      break;
+    }
+  }
+  String line = client.readStringUntil('\n');
+
+  displayData(line);
 }
 
 void loop() {
-  // Anfrage an Server stellen
-  HTTPClient http;
-  http.begin("http://192.168.2.23:6342");
-  int httpCode = http.GET();
-  String payload = http.getString();
 
-  Serial.println(httpCode);   // HTTP Response Code ausgeben
-  Serial.println(payload);    // HTTP Response Body ausgeben
-
-  http.end();  // Verbindung schließen
-
-  if (httpCode != 200) {
-    displayConnectionError();
-  } else {
-    displayData(payload);
-  }
-  delay(900000);  //GET Data at every 15 Min
 
 }
 
 void einkStart() {
   display.fillScreen(GxEPD_WHITE);
-  utf8_display.setFont(u8g2_font_helvB24_tf);
+  // Schriftarten verbrauchen richtig Speicher (dynamiscH)
+  utf8_display.setFont(u8g2_font_helvB18_tf);
   // SetFontMode muss nach jedem ändern der Schriftart aufgeruden werden, sonst wird Fontmode 0 verwende
   utf8_display.setFontMode(1);
   utf8_display.setForegroundColor(GxEPD_BLACK);
   utf8_display.setCursor(30, 30);
-  utf8_display.println("E-Ink Kalender");
+  utf8_display.println(F("E-Ink Kalender"));
   utf8_display.setCursor(20, 350);
-  utf8_display.println("Starte...");
+  utf8_display.println(F("Starte..."));
   utf8_display.setFont(u8g2_font_helvR14_tf);
   utf8_display.setFontMode(1);
-  utf8_display.setCursor(160,390);
-  utf8_display.print("von @zottelchin");
+  utf8_display.setCursor(160, 390);
+  utf8_display.print(F("von @zottelchin"));
   display.fillRect(70, 100, 150, 150, GxEPD_BLACK);
   display.fillCircle(105, 105, 7, GxEPD_WHITE);
   display.fillCircle(185, 105, 7, GxEPD_WHITE);
@@ -98,7 +106,7 @@ void einkStart() {
 }
 
 void displayData(String data) {
-  Serial.println("Kalender anzeigen");
+  Serial.println(F("Kalender anzeigen"));
   display.fillScreen(GxEPD_WHITE);
   display.setTextWrap(false);
   display.setTextColor(GxEPD_BLACK);
@@ -155,26 +163,6 @@ void displayData(String data) {
   display.update();
 }
 
-void displayConnectionError() {
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(GxEPD_BLACK);
-  utf8_display.setFont(u8g2_font_helvB18_tf);
-  utf8_display.setFontMode(1);
-  utf8_display.setCursor(0, 0);
-  utf8_display.println();
-  utf8_display.println(" E-Ink Kalender");
-  utf8_display.println();
-  utf8_display.println();
-  utf8_display.println();
-  utf8_display.println(" Verbindung zum Server ");
-  utf8_display.println(" ist fehlgeschlagen");
-  // Smiley :|
-  display.fillCircle(150, 250, 25, GxEPD_BLACK);
-  display.fillCircle(140, 240, 3, GxEPD_WHITE);
-  display.fillCircle(160, 240, 3, GxEPD_WHITE);
-  display.fillRect(140, 260, 20, 2, GxEPD_WHITE);
-  display.update();
-}
 
 /* Code from stackoverflow
   https://stackoverflow.com/a/14824108
