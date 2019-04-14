@@ -5,11 +5,10 @@
 
 // Bibliotheken um auf das Internet zugreifen zu können
 #include <ESP8266WiFi.h>
-#include <WiFiClientSecure.h>
+#include <ESP8266HTTPClient.h>
 
 // Weil UTF-8
 #include <U8g2_for_Adafruit_GFX.h>
-
 
 // Display einrichten
 GxIO_Class io(SPI, /*CS=*/ 15, /*DC=*/ 4, /*RST=*/ 5);
@@ -47,34 +46,25 @@ void setup() {
   Serial.print(F("Connected, IP address: ")); Serial.println(WiFi.localIP());
 
   // Wir sind ab hier mit dem WLAN verbunden
-
-  WiFiClientSecure client;
-  Serial.println(F("connecting to e-ink.zottelchin.de"));
-  if (!client.connect(F("e-ink.zottelchin.de"), 443)) {
-    Serial.println(F("connection failed"));
-    return;
-  }
-
-
-
-  client.print(F("GET /ErcHRbrXh6aE7KCOfbuFzfvP6lxyoA HTTP/1.1\r\nHost: e-ink.zottelchin.de\r\nUser-Agent: BuildFailureDetectorESP8266\r\nConnection: close\r\n\r\n"));
-
-  //Serial.println("request sent");
-  while (client.connected()) {
-    String line = client.readStringUntil('\n');
-    if (line == "\r") {
-      Serial.println(F("headers received"));
-      break;
-    }
-  }
-  String line = client.readStringUntil('\n');
-
-  displayData(line);
+  
 }
 
 void loop() {
 
+  HTTPClient http;    //Declare object of class HTTPClient
+  http.begin("http://c.zottelchin.de/ErcHRbrXh6aE7KCOfbuFzfvP6lxyoA");     //Specify request destination
+  
+  int httpCode = http.GET();            //Send the request
+  if (httpCode != 200) {
+    Serial.println(F("connection failed"));
+    return;
+  }
+  String payload = http.getString();    //Get the response payload
+ 
+  http.end();  //Close connection
 
+  displayData(payload);
+  delay(900000);// Delay 15 minuten
 }
 
 void einkStart() {
@@ -116,10 +106,10 @@ void displayData(String data) {
   utf8_display.println();
   utf8_display.println("    " + getValue(data, 0));
   display.drawFastHLine(20, 32, 260, GxEPD_BLACK);
-  display.drawFastHLine(20, 110, 260, GxEPD_BLACK);
-  display.drawFastHLine(20, 180, 260, GxEPD_BLACK);
-  display.drawFastHLine(20, 250, 260, GxEPD_BLACK);
-  display.drawFastHLine(20, 320, 260, GxEPD_BLACK);
+  display.drawFastHLine(20, 105, 260, GxEPD_BLACK);
+  display.drawFastHLine(20, 175, 260, GxEPD_BLACK);
+  display.drawFastHLine(20, 245, 260, GxEPD_BLACK);
+  display.drawFastHLine(20, 315, 260, GxEPD_BLACK);
   utf8_display.setFont(u8g2_font_helvB14_tf);
   utf8_display.setFontMode(1);
   utf8_display.setCursor(0, 60);
